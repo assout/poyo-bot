@@ -1,0 +1,22 @@
+{
+  "name": "poyo-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/assout/poyo-bot.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/assout/poyo-bot/issues"
+  },
+  "homepage": "https://github.com/assout/poyo-bot#readme",
+  "dependencies": {
+    "async": "~2.0.1"
+  }
+}
