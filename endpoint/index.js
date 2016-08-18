@@ -9,6 +9,7 @@ const s3 = new aws.S3({ apiVersion: '2006-03-01' });
 const docClient = new aws.DynamoDB.DocumentClient();
 const https = require('https');
 const async = require('async');
+const request = require('request');
 
 const bucket = 'assout-images';
 const endpointHost = 'trialbot-api.line.me';
@@ -45,6 +46,49 @@ function getResult(comment) {
   });
 }
 
+function increment(bucketName) {
+  const params = {
+    TableName: 'images',
+    Key: { bucketName },
+    UpdateExpression: 'set #referenceCount = #referenceCount + :i',
+    ExpressionAttributeNames: { '#referenceCount': 'referenceCount' },
+    ExpressionAttributeValues: { ':i': 1 },
+  };
+
+  docClient.update(params, (err, data) => {
+    if (err) {
+      console.log(`error: ${err}`);
+    } else {
+      console.log(`success: ${data}`);
+    }
+  });
+}
+
+function send(data) {
+  const opts = {
+    host: 'trialbot-api.line.me',
+    path: '/v1/events',
+    headers: {
+      'Content-type': 'application/json; charset=UTF-8',
+      'X-Line-ChannelID': process.env.LINE_CHANNEL_ID,
+      'X-Line-ChannelSecret': process.env.LINE_CHANNEL_SECRET,
+      'X-Line-Trusted-User-With-ACL': process.env.LINE_CHANNEL_MID,
+    },
+    method: 'POST',
+  };
+
+  const req = https.request(opts, (res) => {
+    res.on('data', (chunk) => {
+      console.log(chunk.toString());
+    }).on('error', (e) => {
+      console.log(`ERROR:${e.stack}`);
+    });
+  });
+  req.write(data);
+  req.end();
+}
+
+
 function doResponse(msg) {
   const result = getResult(msg.content.text);
   result.on('success', (response) => {
@@ -65,7 +109,7 @@ function doResponse(msg) {
         },
       });
     } else {
-      const countMap = response.data.Items.map( o => o.referenceCount);
+      const countMap = response.data.Items.map(o => o.referenceCount);
       const min = Math.min.apply(null, countMap);
       const index = countMap.indexOf(min);
 
@@ -102,48 +146,6 @@ function doResponse(msg) {
   });
 }
 
-function increment(bucket) {
-  const params = {
-    TableName: 'images',
-    Key: { bucket: bucket },
-    UpdateExpression: 'set #referenceCount = #referenceCount + :i',
-    ExpressionAttributeNames: { '#referenceCount': 'referenceCount' },
-    ExpressionAttributeValues: { ':i': 1 },
-  };
-
-  docClient.update(params, function (err, data) {
-    if (err) {
-      console.log(`error: ${err}`);
-    } else {
-      console.log(`success: ${data}`);
-    }
-  });
-}
-
-function send(data) {
-  const opts = {
-    host: 'trialbot-api.line.me',
-    path: '/v1/events',
-    headers: {
-      'Content-type': 'application/json; charset=UTF-8',
-      'X-Line-ChannelID': process.env.LINE_CHANNEL_ID,
-      'X-Line-ChannelSecret': process.env.LINE_CHANNEL_SECRET,
-      'X-Line-Trusted-User-With-ACL': process.env.LINE_CHANNEL_MID,
-    },
-    method: 'POST',
-  };
-
-  const req = https.request(opts, (res) => {
-    res.on('data', (chunk) => {
-      console.log(chunk.toString());
-    }).on('error', (e) => {
-      console.log(`ERROR:${e.stack}`);
-    });
-  });
-  req.write(data);
-  req.end();
-}
-
 function receiveText(msg) {
   doResponse(msg);
 }
@@ -155,18 +157,18 @@ function receiveStikcer(msg) {
 function retriveImageFrom(contentId, callback) {
   const options = {
     hostname: endpointHost,
-    path: '/v1/bot/message/' + contentId + '/content',
+    path: `/v1/bot/message/${contentId}/content`,
     headers,
     method: 'GET',
   };
-  const req = https.request(options, function (res) {
+  const req = https.request(options, (res) => {
     const data = [];
-    res.on('data', function (chunk) {
+    res.on('data', (chunk) => {
       // image data dividing it in to multiple request
       data.push(new Buffer(chunk));
-    }).on('error', function (err) {
+    }).on('error', (err) => {
       console.log(err);
-    }).on('end', function () {
+    }).on('end', () => {
       console.log('finish to retrive image');
       const img = Buffer.concat(data);
       callback(null, img);
@@ -183,7 +185,7 @@ function saveImageToS3(img, name, callback) {
     ACL: 'public-read',
     Body: img,
   };
-  s3.putObject(params, function (err, data) {
+  s3.putObject(params, (err, data) => {
     if (err) {
       console.log(err);
       callback('e', '');
@@ -201,9 +203,9 @@ function receiveImage(msg) {
     function (img, callback) {
       async.parallel({
         original(callback) {
-          saveImageToS3(img, msg.content.id + '.jpg', callback);
+          saveImageToS3(img, `${msg.content.id}.jpg`, callback);
         },
-      }, function (err, result) {
+      }, (err, result) => {
         if (err) {
           console.log(err);
         } else {
@@ -225,27 +227,59 @@ function receiveImage(msg) {
       });
       send(data);
     },
-  ], function (err, result) {
+  ], (err, result) => {
     if (err) {
       console.log(err);
     }
   });
 }
 
-function proc(msg) {
-  if (msg.content.contentType === 1) {
-    receiveText(msg);
-  } else if (msg.content.contentType === 2) {
-    receiveImage(msg);
-  } else if (msg.content.contentType === 8) {
-    receiveStikcer(msg);
+function addFriends(result) {
+  const receiveOptions = {
+    url: `https://trialbot-api.line.me/v1/profiles?mids=${result.content.params[0]}`,
+    headers,
+    json: true,
+  };
+  request.get(receiveOptions, (error, response, body) => {
+    if (error) {
+      console.log(`error:${JSON.stringify(error)}`);
+    } else {
+      console.log("test: " + body);
+      const usermid = body.contacts[0].mid;
+      const username = body.contacts[0].displayName;
+      docClient.put({
+        TableName: 'friends',
+        Item: {
+          mid: usermid,
+          username,
+        },
+      }, (err, data) => {
+        if (err) {
+          console.log(err);
+        } else {
+          console.log(`add friends successfully, ${data}`);
+        }
+      });
+    }
+  });
+}
+
+function proc(result) {
+  if (result.content.opType === 4) {
+    addFriends(result);
+  } else if (result.content.contentType === 1) {
+    receiveText(result);
+  } else if (result.content.contentType === 2) {
+    receiveImage(result);
+  } else if (result.content.contentType === 8) {
+    receiveStikcer(result);
   }
 }
 
 exports.lambdaHandler = function main(event, context) {
   console.log('Received event:', JSON.stringify(event, null, 2));
-  event.result.forEach((msg) => {
-    proc(msg);
+  event.result.forEach((result) => {
+    proc(result);
   });
 };
 

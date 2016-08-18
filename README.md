@@ -1,3 +1,5 @@
 # ぽよBOT
 
-TODO
+## How to Deploy
+
+

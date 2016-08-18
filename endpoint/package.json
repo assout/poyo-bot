@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/assout/poyo-bot#readme",
   "dependencies": {
-    "async": "~2.0.1"
+    "async": "~2.0.1",
+    "request": "~2.0.5"
   }
 }
