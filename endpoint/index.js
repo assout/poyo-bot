@@ -49,7 +49,7 @@ function getResult(comment) {
 function increment(bucketName) {
   const params = {
     TableName: 'images',
-    Key: { bucketName: bucketName },
+    Key: { bucket: bucketName },
     UpdateExpression: 'set #referenceCount = #referenceCount + :i',
     ExpressionAttributeNames: { '#referenceCount': 'referenceCount' },
     ExpressionAttributeValues: { ':i': 1 },
