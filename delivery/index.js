@@ -42,9 +42,9 @@ function scanImages(event, context) {
     });
 
     result.on('success', (response) => {
-      const countMap = response.data.Items.map(o => o.referenceCount);
-      const min = Math.min.apply(null, countMap);
-      const index = countMap.indexOf(min);
+      const referenceTimeMap = response.data.Items.map(o => o.referenceTime);
+      const min = Math.min.apply(null, referenceTimeMap);
+      const index = referenceTimeMap.indexOf(min);
       const item = response.data.Items[index];
       resolve(item);
     });
@@ -55,9 +55,9 @@ function increment(bucket, resolve, reject) {
   const params = {
     TableName: 'images',
     Key: { bucket },
-    UpdateExpression: 'set #referenceCount = #referenceCount + :i',
-    ExpressionAttributeNames: { '#referenceCount': 'referenceCount' },
-    ExpressionAttributeValues: { ':i': 1 },
+    UpdateExpression: 'set #referenceTime = :i',
+    ExpressionAttributeNames: { '#referenceTime': 'referenceTime' },
+    ExpressionAttributeValues: { ':i': new Date().getTime() },
   };
 
   docClient.update(params, function (err, data) {

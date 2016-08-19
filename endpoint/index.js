@@ -50,9 +50,9 @@ function increment(bucketName) {
   const params = {
     TableName: 'images',
     Key: { bucket: bucketName },
-    UpdateExpression: 'set #referenceCount = #referenceCount + :i',
-    ExpressionAttributeNames: { '#referenceCount': 'referenceCount' },
-    ExpressionAttributeValues: { ':i': 1 },
+    UpdateExpression: 'set #referenceTime = :i',
+    ExpressionAttributeNames: { '#referenceTime': 'referenceTime' },
+    ExpressionAttributeValues: { ':i': new Date().getTime() },
   };
 
   docClient.update(params, (err, data) => {
@@ -109,9 +109,9 @@ function doResponse(msg) {
         },
       });
     } else {
-      const countMap = response.data.Items.map(o => o.referenceCount);
-      const min = Math.min.apply(null, countMap);
-      const index = countMap.indexOf(min);
+      const referenceTimeMap = response.data.Items.map(o => o.referenceTime);
+      const min = Math.min.apply(null, referenceTimeMap);
+      const index = referenceTimeMap.indexOf(min);
 
       const item = response.data.Items[index];
       const messages = [
