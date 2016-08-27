@@ -52,7 +52,7 @@ function increment(bucketName) {
     Key: { bucket: bucketName },
     UpdateExpression: 'set #referenceTime = :i',
     ExpressionAttributeNames: { '#referenceTime': 'referenceTime' },
-    ExpressionAttributeValues: { ':i': new Date().getTime() },
+    ExpressionAttributeValues: { ':i': Date.now() },
   };
 
   docClient.update(params, (err, data) => {
@@ -244,7 +244,6 @@ function addFriends(result) {
     if (error) {
       console.log(`error:${JSON.stringify(error)}`);
     } else {
-      console.log("test: " + body);
       const usermid = body.contacts[0].mid;
       const username = body.contacts[0].displayName;
       docClient.put({
@@ -252,6 +251,7 @@ function addFriends(result) {
         Item: {
           mid: usermid,
           username,
+          status: 'AVAILABLE',
         },
       }, (err, data) => {
         if (err) {

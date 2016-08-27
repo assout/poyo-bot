@@ -11,6 +11,9 @@ function scanFriends(event, context) {
   return new Promise((resolve, reject) => {
     const param = {
       TableName: 'friends',
+      FilterExpression: '#status = :status',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':status': 'AVAILABLE' },
     };
 
     const result = docClient.scan(param, (err, data) => {
@@ -30,9 +33,16 @@ function scanFriends(event, context) {
 
 function scanImages(event, context) {
   return new Promise((resolve, reject) => {
+    const begin = new Date();
+    begin.setDate(begin.getDate() - 7);
     const param = {
       TableName: 'images',
+      FilterExpression: 'registeredTime > :begin',
+      ExpressionAttributeValues: {
+        ':begin': begin.getTime(),
+      },
     };
+    console.log(begin.getTime());
 
     const result = docClient.scan(param, (err, data) => {
       if (err) {
@@ -42,61 +52,53 @@ function scanImages(event, context) {
     });
 
     result.on('success', (response) => {
-      const referenceTimeMap = response.data.Items.map(o => o.referenceTime);
-      const min = Math.min.apply(null, referenceTimeMap);
-      const index = referenceTimeMap.indexOf(min);
-      const item = response.data.Items[index];
-      resolve(item);
+      response.data.Items.sort((a, b) => {
+        if (a.registeredTime > b.registeredTime) return 1;
+        if (a.registeredTime < b.registeredTime) return -1;
+        return 0;
+      });
+      resolve(response.data.Items);
     });
-  });
-}
-
-function increment(bucket, resolve, reject) {
-  const params = {
-    TableName: 'images',
-    Key: { bucket },
-    UpdateExpression: 'set #referenceTime = :i',
-    ExpressionAttributeNames: { '#referenceTime': 'referenceTime' },
-    ExpressionAttributeValues: { ':i': new Date().getTime() },
-  };
-
-  docClient.update(params, function (err, data) {
-    if (err) {
-      console.log(`error: ${err}`);
-      reject(err);
-    } else {
-      resolve();
-    }
   });
 }
 
 function delivery(values) {
   return new Promise((resolve, reject) => {
-
     const mids = values[0];
-    const image = values[1];
+    const images = values[1];
 
     console.log(mids);
-    console.log(image);
+    console.log(images);
 
-    const messages = [
-      {
-        contentType: 2,
-        originalContentUrl: image.bucket,
-        previewImageUrl: image.bucket,
-      },
-    ];
-
-    const comment = image.comment;
-    if (typeof comment !== 'undefined') {
+    const messages = [];
+    images.forEach((image) => {
       messages.push(
         {
-          contentType: 1,
-          text: comment,
+          contentType: 2,
+          originalContentUrl: image.bucket,
+          previewImageUrl: image.bucket,
         }
       );
-    }
+      const comment = image.comment;
+      if (typeof comment !== 'undefined') {
+        messages.push(
+          {
+            contentType: 1,
+            text: comment,
+          }
+        );
+      }
+    });
 
+    messages.push({
+      contentType: 1,
+      text: messages.length === 0 ? '今週は進捗ないぽよ〜' : '様子ぽよ',
+    });
+
+    console.log(messages);
+    console.log(JSON.stringify(messages));
+
+    // TODO メッセージ数APIの制限ある？
     const data = JSON.stringify({
       to: mids,
       toChannel: 1383378250,
@@ -107,15 +109,10 @@ function delivery(values) {
     });
 
     send(data);
-
-    increment(image.bucket, resolve, reject);
-
-    console.log("debubbbbbbbbbbbb");
   });
 }
 
 function send(data) {
-  console.log('do send. ' + data);
   console.log(process.env);
   const opts = {
     host: 'trialbot-api.line.me',
@@ -138,21 +135,20 @@ function send(data) {
   });
   req.write(data);
   req.end();
-  console.log('end send. ' + data);
 }
 
 exports.handler = function (event, context) {
-  console.log('Received event:' + JSON.stringify(event, null, '  '));
+  console.log(`Received event: ${JSON.stringify(event, null, '  ')}`);
 
   const friendsPromise = scanFriends(event, context);
   const imagesPromise = scanImages(event, context);
 
   Promise.all([friendsPromise, imagesPromise])
     .then(delivery)
-    .then(function(result) {
+    .then((result) => {
       context.done();
-    }, function(err) {
-      console.log("errrrrr: " + err);
+    }, (err) => {
+      console.log(`errrrrr: ${err}`);
       context.done();
     });
 };
