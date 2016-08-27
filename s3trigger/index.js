@@ -20,6 +20,7 @@ function registrationMetadata(event, context) {
     TableName: 'images',
     Item: {
       bucket: `https://s3-ap-northeast-1.amazonaws.com/${bucket}/${key}`,
+      registeredTime: Date.now(),
       referenceTime: 0,
       size,
       eventName,
